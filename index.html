@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Client</title>
+  </head>
+  <body>
+    <h1>WebSocket Client</h1>
+    <label for="screenId">Screen ID:</label>
+    <input type="text" id="screenId" placeholder="Enter your Screen ID" />
+    <button id="connect">Connect</button>
+
+    <div id="output"></div>
+
+    <script>
+      let socket;
+
+      document.getElementById("connect").onclick = () => {
+        const screenId = document.getElementById("screenId").value; // เปลี่ยนจาก id เป็น screenId
+        if (!screenId) {
+          alert("Please enter a Screen ID.");
+          return;
+        }
+
+        socket = new WebSocket("wss://express-websocket-1.onrender.com");
+
+        socket.onopen = () => {
+          console.log("Connected to WebSocket");
+          socket.send(JSON.stringify({ screenId })); // ส่ง screenId ไปที่ server
+        };
+
+        socket.onmessage = (event) => {
+          const output = document.getElementById("output");
+          output.innerHTML += `<p>Message from WebSocket: ${event.data}</p>`;
+        };
+
+        socket.onerror = (error) => {
+          console.error("WebSocket error:", error);
+        };
+
+        socket.onclose = () => {
+          console.log("WebSocket connection closed");
+        };
+      };
+    </script>
+  </body>
+</html>
