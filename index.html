@@ -27,6 +27,9 @@
 
         socket.onopen = () => {
           console.log("Connected to WebSocket");
+          document.getElementById(
+            "output"
+          ).innerHTML += `<p>Connected to WebSocket</p>`;
           socket.send(JSON.stringify({ screenId })); // ส่ง screenId ไปที่ server
         };
 
@@ -37,10 +40,16 @@
 
         socket.onerror = (error) => {
           console.error("WebSocket error:", error);
+          document.getElementById(
+            "output"
+          ).innerHTML += `<p style="color: red;">WebSocket error: ${error.message}</p>`;
         };
 
         socket.onclose = () => {
           console.log("WebSocket connection closed");
+          document.getElementById(
+            "output"
+          ).innerHTML += `<p>WebSocket connection closed</p>`;
         };
       };
     </script>
