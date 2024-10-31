@@ -3,21 +3,188 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebSocket Client</title>
+    <title>WebSocket Camera Upload</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <style>
+      .camera-container {
+        max-width: 640px;
+        margin: 20px auto;
+      }
+      #video,
+      #canvas {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
   </head>
   <body>
-    <h1>WebSocket Client</h1>
-    <label for="screenId">Screen ID:</label>
-    <input type="text" id="screenId" placeholder="Enter your Screen ID" />
-    <button id="connect">Connect</button>
+    <h1>WebSocket Camera Upload</h1>
+    <div>
+      <label for="screenId">Screen ID:</label>
+      <input type="text" id="screenId" placeholder="Enter your Screen ID" />
+      <button id="connect">Connect</button>
+    </div>
+
+    <div class="camera-container hidden" id="cameraContainer">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" class="hidden"></canvas>
+      <button id="captureButton" disabled>Capture Photo</button>
+    </div>
 
     <div id="output"></div>
 
     <script>
       let socket;
+      let videoStream;
+      const FOLDER_ID = "1iZk-FAthz-yQexcpY90HMwVCWG1Xixdc"; // ใส่ Folder ID ของ Google Drive ที่ต้องการอัพโหลด
+
+      // Service Account credentials
+      const serviceAccount = {
+        type: "service_account",
+        project_id: "spring-melody-440303-v5",
+        private_key_id: "9bb0622846275db82718b7b4c6d918abfc2c26bf",
+        private_key:
+          "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCpa4flSInxdSI6\nTxleZIqRyiEAWpuebWyKdZoAdG7NG9cuKLe8cZGQ0Nr+v7+OkNvb5N4PBLJnjtwk\nnO9Ed//Zhd0kdh814I9x9MPl38RgvJecz8f+tPy+U97Gw/v5BcBda2maUmpHe+8O\n/CvzbHRYRpUCssrXDpoIiVVm/aZRmVYDnzp8ILwQcqKU7oFjVnYB7uSMdgy0gdVP\nOiEUreW7aWR4p7OUMEiknfHicAN2QSVA9QeqI220a8DHZA1q+0m+u+VDa4KPYbUL\nzZjNaecnEFuudnoqBfUqtMNzCxYdbeozxPMf8BPVdHgnUSTJlJOgkctJB2fITxJQ\njm01CgNXAgMBAAECggEASFN5nm6LRSNmS1I9WEi/x2FtGUOVL9sy/SEbb5pFOxbp\nk/EaDz7Ej/g5pYuicXByC7v2+J5es0sPvCmrE6XO+cPmFoy+4jdNxa5iex4+LbYV\nW4JwtNH7HB2d+2jrhvHnn3odiR4p9P55ngIVmUPxn0Xyk0ZUxd6b740BgohCmo6R\n1db8VM87TfhPcNuLOD13/3EbFg4V/uXp15u6eEbDTMrrr8iLFc4k9vAXlAnnBKr4\n0xvMO3yrFoNv7RX4eIyzBkgoKTVyOThfeAU0VIClMoFd/dQqvl+j+KXnMvOGNJYN\nXgt9DZDtS1wEZ8RAKbt5Q6gYjpeAzixvsKeP2W5ywQKBgQDvfvcJTJ3vD/3/dwFd\nsra6CrgEFcNRH9pnwSmWuzPmoIij578LRo6IMJKbWUBljhY97Le3raRtMlh4CntP\nq4HkopZksN9C1teJKrYTf27ZoxZa8lup0cs7ND/mErn4hFJvvfkmBUJo4MfQkC5l\nnH+MVF61wj9zkGwmFeERPlUGJwKBgQC1GFTMCvg7P7RKUGzyUXm5B4J4O+hVT42/\nA1Xlpg0YtfzNRzZVWIJXfgt2HuKxHeWRuHHzFVIytna0WyH4OvPYQ3G8gtTnzRXU\n1yYVmoCzfKIQ/hyaHdSNyJ2s5DehnSrn4CFOttCho22mSwUHL+dXpJz3aqKN2b1H\n3bg04kgHUQKBgFUmeiSnRfvKXs9me2jZ8pfA2d4x8qi0P43mIqhB1NkpuIs2CTm0\nE1celfF/0SKKWyQXNtaqeSyN2uCLMX6JBvzIRdp0/FwiUK2nLudNxpbAomEhjC+b\ntLtO/20IuXA/c6PhEmVPN2ZcjQ59RNHBy6OUF7xd3Pt0nM8JtmTQGaC/AoGAH6Lt\nhWvRK8CYRXdBYR+8rQdT0p9cmjK4p4r0oZbdqNh6Hn53TneU5aX+aJdCsQBxD4Dy\nXy31WyinGiDlkVDzMm+t2endOdWJH9KqM5H3M+PtCBzscDwP2ukWKpL/6Prk+Pcd\nunuTfPlo+WkXqsbCmnwGc+6sES3dtEVWnd5+CNECgYEA4ErN2vjCFLOXFz/SoaD+\nidTfyMmQ3OO/Hcda+K60wCNO2r9EkCxcue3MkhEDzSmazsCH12BePZhWLY1N3j4O\nOq9ReqkXQwAXG0o5JeuYj77Z+FoRHY2v4SegP2/1w0tKv+MtoJ6NWuVumehySWXj\nhzYgzg/PRyizI8vv8q0im4g=\n-----END PRIVATE KEY-----\n",
+        client_email:
+          "uploadimage@spring-melody-440303-v5.iam.gserviceaccount.com",
+        client_id: "117150967363560995060",
+        auth_uri: "https://accounts.google.com/o/oauth2/auth",
+        token_uri: "https://oauth2.googleapis.com/token",
+        auth_provider_x509_cert_url:
+          "https://www.googleapis.com/oauth2/v1/certs",
+        client_x509_cert_url:
+          "https://www.googleapis.com/robot/v1/metadata/x509/uploadimage%40spring-melody-440303-v5.iam.gserviceaccount.com",
+        universe_domain: "googleapis.com",
+      };
+
+      async function initCamera() {
+        try {
+          videoStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+          const video = document.getElementById("video");
+          video.srcObject = videoStream;
+          document.getElementById("captureButton").disabled = false;
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          document.getElementById(
+            "output"
+          ).innerHTML += `<p style="color: red;">Error accessing camera: ${err.message}</p>`;
+        }
+      }
+
+      async function capturePhoto(screenId, libraryItemId) {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+
+        // Set canvas dimensions to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // Draw video frame to canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Convert canvas to blob
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg")
+        );
+
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `${timestamp}_${screenId}_${libraryItemId}.jpg`;
+
+        // Upload to Google Drive
+        await uploadToGoogleDrive(blob, filename);
+      }
+
+      async function uploadToGoogleDrive(blob, filename) {
+        try {
+          // Get access token using service account
+          const accessToken = await getAccessToken();
+
+          // Create multipart request
+          const metadata = {
+            name: filename,
+            parents: [FOLDER_ID],
+          };
+
+          const form = new FormData();
+          form.append(
+            "metadata",
+            new Blob([JSON.stringify(metadata)], { type: "application/json" })
+          );
+          form.append("file", blob);
+
+          // Upload file
+          const response = await fetch(
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: form,
+            }
+          );
+
+          if (response.ok) {
+            document.getElementById(
+              "output"
+            ).innerHTML += `<p>Successfully uploaded ${filename}</p>`;
+          } else {
+            throw new Error(`Upload failed: ${response.statusText}`);
+          }
+        } catch (err) {
+          console.error("Error uploading to Google Drive:", err);
+          document.getElementById(
+            "output"
+          ).innerHTML += `<p style="color: red;">Upload error: ${err.message}</p>`;
+        }
+      }
+
+      async function getAccessToken() {
+        const jwtHeader = {
+          alg: "RS256",
+          typ: "JWT",
+        };
+
+        const now = Math.floor(Date.now() / 1000);
+        const jwtClaimSet = {
+          iss: serviceAccount.client_email,
+          scope: "https://www.googleapis.com/auth/drive.file",
+          aud: serviceAccount.token_uri,
+          exp: now + 3600,
+          iat: now,
+        };
+
+        // Create JWT
+        const encodedHeader = btoa(JSON.stringify(jwtHeader));
+        const encodedClaimSet = btoa(JSON.stringify(jwtClaimSet));
+        const signedJwt = `${encodedHeader}.${encodedClaimSet}`; // Note: This is a simplified version, you'll need proper JWT signing
+
+        // Exchange JWT for access token
+        const response = await fetch(serviceAccount.token_uri, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: signedJwt,
+          }),
+        });
+
+        const data = await response.json();
+        return data.access_token;
+      }
 
       document.getElementById("connect").onclick = () => {
-        const screenId = document.getElementById("screenId").value; // เปลี่ยนจาก id เป็น screenId
+        const screenId = document.getElementById("screenId").value;
         if (!screenId) {
           alert("Please enter a Screen ID.");
           return;
@@ -30,12 +197,32 @@
           document.getElementById(
             "output"
           ).innerHTML += `<p>Connected to WebSocket</p>`;
-          socket.send(JSON.stringify({ screenId })); // ส่ง screenId ไปที่ server
+          socket.send(JSON.stringify({ screenId }));
+
+          // Initialize camera after WebSocket connection
+          document.getElementById("cameraContainer").classList.remove("hidden");
+          initCamera();
         };
 
-        socket.onmessage = (event) => {
+        socket.onmessage = async (event) => {
           const output = document.getElementById("output");
           output.innerHTML += `<p>Message from WebSocket: ${event.data}</p>`;
+
+          try {
+            const data = JSON.parse(event.data);
+
+            // Check if all required fields exist
+            if (
+              data.itemId &&
+              data.customId &&
+              data.libraryItemId &&
+              data.screenId
+            ) {
+              await capturePhoto(data.screenId, data.libraryItemId);
+            }
+          } catch (err) {
+            console.error("Error processing message:", err);
+          }
         };
 
         socket.onerror = (error) => {
@@ -50,7 +237,19 @@
           document.getElementById(
             "output"
           ).innerHTML += `<p>WebSocket connection closed</p>`;
+
+          // Clean up camera when connection closes
+          if (videoStream) {
+            videoStream.getTracks().forEach((track) => track.stop());
+          }
+          document.getElementById("cameraContainer").classList.add("hidden");
         };
+      };
+
+      // Manual capture button handler
+      document.getElementById("captureButton").onclick = () => {
+        const screenId = document.getElementById("screenId").value;
+        capturePhoto(screenId, "manual-capture");
       };
     </script>
   </body>
